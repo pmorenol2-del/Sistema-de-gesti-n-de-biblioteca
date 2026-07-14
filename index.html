@@ -1,0 +1,480 @@
+<!--
+  ============================================================================
+  SIMULADOR DE LA 2DA Y 3RA LEY DE NEWTON  (F = m · a  /  Acción y Reacción)
+  ============================================================================
+  Resumen de la estructura de este archivo (todo en un solo .html):
+
+  1. <head>            → metadatos, fuentes de Google Fonts y librerías externas
+                          (Chart.js para gráficas, jsPDF y html2canvas para
+                          generar el reporte en PDF).
+
+  2. <style>            → todos los estilos visuales. Usa "variables CSS"
+                          (--bg, --accent, --F-color, etc.) definidas en :root
+                          para el tema oscuro, y sobrescritas en "body.light"
+                          para el tema claro. Cada variable y cada bloque de
+                          estilo tiene un comentario explicando su color/uso.
+
+  3. <body>              → el HTML visible:
+                          - Botón para cambiar tema claro/oscuro.
+                          - Encabezado y pestañas para elegir 2da o 3ra Ley.
+                          - Panel de bienvenida (antes de elegir una ley).
+                          - Sección "2da Ley": inputs de F/m/a, escena animada
+                            con un sprite (emoji) que se mueve, y gráfica.
+                          - Sección "3ra Ley": modos "Par de fuerzas" y
+                            "Colisión" entre dos objetos (A y B), con su
+                            propia escena y gráfica.
+                          - Historial de simulaciones (guardadas en memoria)
+                            con opción de exportarlas a PDF.
+
+  4. <script>            → toda la lógica en JavaScript puro (sin frameworks):
+                          - Validación de inputs numéricos.
+                          - Cálculo de F, m o a según la incógnita elegida
+                            (2da Ley) y de fuerza/aceleración/colisión (3ra Ley).
+                          - Animación de la escena con requestAnimationFrame.
+                          - Actualización de las gráficas (Chart.js).
+                          - Historial: guardar, filtrar, eliminar, marcar
+                            favoritos.
+                          - Generación de reportes en PDF con jsPDF,
+                            incluyendo capturas de la escena (html2canvas).
+
+  Casi cada función, cada variable CSS y cada bloque de código tiene un
+  comentario en español explicando qué hace y por qué. Esta cabecera es solo
+  un mapa general para ubicarse rápido en el archivo.
+  ============================================================================
+-->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>F = m · a — Simulador Segunda Ley de Newton</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+</head>
+<body>
+
+<!-- THEME TOGGLE -->
+<div class="page">
+
+  <div style="display:flex; justify-content:flex-end; margin-bottom:1rem;">
+    <button id="theme-toggle" onclick="toggleTheme()" title="Cambiar modo">
+      <span class="toggle-icon" id="toggle-icon">☀️</span>
+      <span id="toggle-label">MODO CLARO</span>
+    </button>
+  </div>
+
+  <header>
+    <div class="badge">Física Clásica — Newton 1687</div>
+    <h1>
+      <span class="f">Segunda</span>
+      <span class="eq"> &amp; </span>
+      <span class="m">Tercera</span>
+      <span class="dot"> Ley </span>
+      <span class="a">de Newton</span>
+    </h1>
+    <p class="tagline">Simulador interactivo — Leyes de Newton</p>
+  </header>
+
+  <!-- TABS -->
+  <!-- PESTAÑAS PARA ELEGIR ENTRE 2DA Y 3RA LEY DE NEWTON -->
+  <div class="law-tabs">
+    <div class="tab-wrap">
+      <button class="law-tab" id="tab-2" onclick="switchLaw(2)">2da Ley — F = m · a</button>
+      <div class="def-popup" id="tab-def-2">
+        <div class="def-popup-title">Segunda Ley de Newton — <em>F = m · a</em></div>
+        <p class="law-text">La <span class="law-highlight">Segunda Ley de Newton</span> establece que la aceleración de un objeto es directamente proporcional a la fuerza neta que actúa sobre él e inversamente proporcional a su masa. Esto significa que si se aplica una fuerza mayor sobre un mismo objeto, este se acelerará más rápido; y si el mismo objeto tiene más masa, necesitará una fuerza mayor para alcanzar la misma aceleración.</p>
+        <p class="law-text" style="margin-top:0.7rem;">Formulada por <span class="law-highlight">Isaac Newton</span> en 1687 en su obra <em>Philosophiæ Naturalis Principia Mathematica</em>, esta ley es el pilar central de la mecánica clásica. A diferencia de la Primera Ley, la Segunda Ley cuantifica con precisión cómo y cuánto cambia el movimiento de un cuerpo cuando sí se aplica una fuerza.</p>
+        <p class="law-text" style="margin-top:0.7rem;">En la vida cotidiana esta ley está presente en todo momento: cuando empujas un carrito del supermercado, cuando un auto frena de golpe, o cuando un cohete despega. Cuanto mayor sea la masa de un objeto, más difícil será cambiar su estado de movimiento, lo que se conoce como inercia.</p>
+        <div class="law-cards" style="margin-top:1rem;">
+          <div class="law-card law-card-F"><div class="law-card-symbol">F</div><div><div class="law-card-name">Fuerza</div><div class="law-card-desc">Acción que modifica el movimiento de un cuerpo. Se mide en Newtons (N).</div></div></div>
+          <div class="law-card law-card-m"><div class="law-card-symbol">m</div><div><div class="law-card-name">Masa</div><div class="law-card-desc">Cantidad de materia del objeto; determina su resistencia a acelerarse. Se mide en kg.</div></div></div>
+          <div class="law-card law-card-a"><div class="law-card-symbol">a</div><div><div class="law-card-name">Aceleración</div><div class="law-card-desc">Tasa de cambio de la velocidad en el tiempo. Resultado directo de aplicar una fuerza. Se mide en m/s².</div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-wrap">
+      <button class="law-tab" id="tab-3" onclick="switchLaw(3)">3ra Ley — Acción y Reacción</button>
+      <div class="def-popup" id="tab-def-3">
+        <div class="def-popup-title">Tercera Ley de Newton — <em>Acción y Reacción</em></div>
+        <p class="law-text">La <span class="law-highlight">Tercera Ley de Newton</span> establece que por cada fuerza de acción existe una fuerza de reacción igual en magnitud pero opuesta en dirección. Cuando el objeto A ejerce una fuerza sobre el objeto B, el objeto B ejerce simultáneamente una fuerza de igual magnitud sobre A, pero en sentido contrario.</p>
+        <p class="law-text" style="margin-top:0.7rem;">Formulada por <span class="law-highlight">Isaac Newton</span> en 1687, esta ley explica fenómenos como el retroceso de un arma al disparar, el impulso de un cohete al expulsar gases, o cómo podemos caminar — empujamos el suelo hacia atrás y el suelo nos empuja hacia adelante.</p>
+        <p class="law-text" style="margin-top:0.7rem;">A diferencia de la Segunda Ley, aquí siempre hay un par de fuerzas que actúan en objetos distintos al mismo tiempo. Estas fuerzas nunca se cancelan entre sí porque actúan sobre cuerpos diferentes.</p>
+        <div class="law-cards" style="margin-top:1rem;">
+          <div class="law-card" style="border-left:3px solid var(--F-color);"><div class="law-card-symbol" style="color:var(--F-color);">→</div><div><div class="law-card-name">Acción</div><div class="law-card-desc">Fuerza que A ejerce sobre B. Inicia el par de fuerzas.</div></div></div>
+          <div class="law-card" style="border-left:3px solid var(--accent);"><div class="law-card-symbol" style="color:var(--accent);">←</div><div><div class="law-card-name">Reacción</div><div class="law-card-desc">Fuerza que B ejerce sobre A. Igual en magnitud, opuesta en dirección.</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL DE BIENVENIDA -->
+  <!-- Se muestra al cargar la pagina, antes de elegir una ley -->
+  <div id="section-welcome" style="display:flex;align-items:center;justify-content:center;padding:4rem 1rem;text-align:center;">
+    <div>
+      <div style="font-size:3.5rem;margin-bottom:1.2rem;opacity:0.35;">⚛️</div>
+      <p style="font-family:var(--font-mono);font-size:13px;color:var(--text-muted);letter-spacing:1px;margin-bottom:0.5rem;">SELECCIONA UNA LEY PARA COMENZAR</p>
+      <p style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);">Segunda Ley — F = m · a &nbsp;|&nbsp; Tercera Ley — Acción y Reacción</p>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 2DA LEY -->
+  <!-- Panel de la 2da Ley: entradas F/m/a, escena animada y grafico -->
+  <div id="section-2" style="display:none;"><div class="main-grid">
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="panel">
+        <div class="panel-title">Calcular incógnita</div>
+        <div class="unknown-row">
+          <button class="unk-btn" id="unk-F" onclick="setUnknown('F')">F</button>
+          <button class="unk-btn" id="unk-m" onclick="setUnknown('m')">m</button>
+          <button class="unk-btn" id="unk-a" onclick="setUnknown('a')">a</button>
+        </div>
+        <div class="input-block" id="block-F">
+          <div class="input-header"><span class="var-label F">F — Fuerza</span><span class="var-name">Newtons</span></div>
+          <div class="input-wrap F-wrap" id="wrap-F">
+            <input type="number" id="inp-F" placeholder="ej. 100" min="0" step="1" oninput="compute()">
+            <span class="input-unit">N</span>
+          </div>
+        </div>
+        <div class="input-block" id="block-m">
+          <div class="input-header"><span class="var-label m">m — Masa</span><span class="var-name">Kilogramos</span></div>
+          <div class="input-wrap m-wrap" id="wrap-m">
+            <input type="number" id="inp-m" placeholder="ej. 10" min="0" step="0.1" oninput="compute()">
+            <span class="input-unit">kg</span>
+          </div>
+        </div>
+        <div class="input-block" id="block-a">
+          <div class="input-header"><span class="var-label a">a — Aceleración</span><span class="var-name">m/s²</span></div>
+          <div class="input-wrap a-wrap" id="wrap-a">
+            <input type="number" id="inp-a" placeholder="ej. 9.8" min="0.01" step="1" oninput="compute()">
+            <span class="input-unit">m/s²</span>
+          </div>
+        </div>
+        <div class="input-block">
+          <div class="input-header"><span class="var-label" style="color:var(--accent);">t — Duración</span><span class="var-name">Segundos</span></div>
+          <div class="input-wrap" style="border-color:rgba(74,240,200,0.3);" id="wrap-t">
+            <input type="number" id="inp-t" placeholder="ej. 10" min="1" max="9999" step="1" oninput="checkDuracion()">
+            <span class="input-unit">s</span>
+          </div>
+          <div id="dur-hint" style="margin-top:5px;font-family:var(--font-mono);font-size:10px;color:var(--text-dim);">Límite de simulación: 1 – 60 s</div>
+          <div id="dur-warning" style="display:none;margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--accent2);background:rgba(255,107,107,0.08);border:1px solid rgba(255,107,107,0.35);border-radius:6px;padding:7px 10px;line-height:1.5;">⚠ Superaste el límite de 60 s.<br>Se mostrarán los resultados calculados, pero la animación no correrá.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="right-col">
+      <div class="metrics-row">
+        <div class="metric-card"><div class="metric-label">Fuerza</div><div class="metric-val F" id="met-F">0</div><div class="metric-unit-small">Newtons</div></div>
+        <div class="metric-card"><div class="metric-label">Masa</div><div class="metric-val m" id="met-m">0</div><div class="metric-unit-small">kg</div></div>
+        <div class="metric-card"><div class="metric-label">Aceleración</div><div class="metric-val a" id="met-a">0</div><div class="metric-unit-small">m/s²</div></div>
+      </div>
+
+      <div class="scene-outer" id="scene">
+        <div class="scene-sky"><div class="stars" id="stars"></div></div>
+        <div class="ground-strip"><div class="ground-markings" id="markings"></div></div>
+        <div class="hud" id="hud">
+          <div><span>t</span> 0.00 s</div>
+          <div><span>v</span> 0.00 m/s</div>
+          <div><span>x</span> 0.00 m</div>
+        </div>
+        <div class="force-arrow-wrap" id="arrow" style="left:64px;display:none;">
+          <div class="arrow-line" id="arrow-line" style="width:30px;"></div>
+          <div class="arrow-head"></div>
+        </div>
+        <div class="sprite" id="sprite" style="left:24px;">🏈</div>
+
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-sim" id="btn-play" disabled style="opacity:0.4;cursor:not-allowed;">▶ Simular</button>
+        <button class="btn-reset" id="btn-reset" onclick="resetSim()">↺ Reset</button>
+      </div>
+
+      <div class="status-bar">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">Listo — ingresa los valores y presiona Simular</span>
+      </div>
+
+      <div class="two-col">
+        <!-- Galeria de emojis seleccionables para animar en la escena (2da Ley), dividida en 2 paneles -->
+        <div class="panel">
+          <div class="panel-title">Objeto</div>
+          <div class="obj-grid">
+            <div class="obj-card active" onclick="selectObj(this,'🏈','Pelota')"><span class="obj-emoji">🏈</span><span class="obj-name">Pelota</span></div>
+            <div class="obj-card" onclick="selectObj(this,'🚗','Auto')"><span class="obj-emoji flip">🚗</span><span class="obj-name">Auto</span></div>
+            <div class="obj-card" onclick="selectObj(this,'🚀','Cohete')"><span class="obj-emoji">🚀</span><span class="obj-name">Cohete</span></div>
+            <div class="obj-card" onclick="selectObj(this,'🧱','Bloque')"><span class="obj-emoji">🧱</span><span class="obj-name">Bloque</span></div>
+            <div class="obj-card" onclick="selectObj(this,'✈️','Avión')"><span class="obj-emoji">✈️</span><span class="obj-name">Avión</span></div>
+            <div class="obj-card" onclick="selectObj(this,'🛸','OVNI')"><span class="obj-emoji">🛸</span><span class="obj-name">OVNI</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">&nbsp;</div>
+          <div class="obj-grid">
+            <div class="obj-card" onclick="selectObj(this,'🏎️','F1')"><span class="obj-emoji flip">🏎️</span><span class="obj-name">F1</span></div>
+            <div class="obj-card" onclick="selectObj(this,'🚂','Tren')"><span class="obj-emoji flip">🚂</span><span class="obj-name">Tren</span></div>
+            <div class="obj-card" onclick="selectObj(this,'🛶','Bote')"><span class="obj-emoji flip">🛶</span><span class="obj-name">Bote</span></div>
+            <div class="obj-card" onclick="selectObj(this,'🚲','Bicicleta')"><span class="obj-emoji flip">🚲</span><span class="obj-name">Bicicleta</span></div>
+            <div class="obj-card" onclick="selectObj(this,'🛵','Moto')"><span class="obj-emoji flip">🛵</span><span class="obj-name">Moto</span></div>
+            <div class="obj-card" onclick="selectObj(this,'🚁','Helicóptero')"><span class="obj-emoji flip">🚁</span><span class="obj-name">Helicóptero</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+
+  <!-- SECCIÓN 3RA LEY -->
+  <!-- Panel de la 3ra Ley: colision/par de fuerzas entre objeto A y B -->
+  <div id="section-3" style="display:none;"><div class="main-grid">
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="panel">
+        <div class="panel-title">Calcular — 3ra Ley</div>
+        <!-- Tabs "Par de fuerzas" / "Colisión": los colores estan escritos directo en el
+             atributo style (no en <style>). El tab activo por defecto (Par de fuerzas)
+             arranca con fondo solido var(--accent); switchCalc3() en JS intercambia estos
+             estilos inline cuando el usuario cambia de tab. -->
+        <div style="display:flex;gap:8px;margin-bottom:1.2rem;">
+          <button id="calc3-tab-1" onclick="switchCalc3(1)" style="flex:1;padding:8px 0;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:#0b0e1a;font-family:var(--font-mono);font-size:11px;font-weight:700;cursor:pointer;letter-spacing:1px;">⚡ Par de fuerzas</button>
+          <button id="calc3-tab-2" onclick="switchCalc3(2)" style="flex:1;padding:8px 0;border-radius:6px;border:1px solid var(--border-bright);background:transparent;color:var(--text-muted);font-family:var(--font-mono);font-size:11px;font-weight:700;cursor:pointer;letter-spacing:1px;">💥 Colisión</button>
+        </div>
+
+        <!-- MODE 1 -->
+        <div id="calc3-mode1">
+          <div class="input-block">
+            <div class="input-header"><span class="var-label F">Fuerza de acción</span><span class="var-name">Newtons</span></div>
+            <div class="input-wrap F-wrap"><input type="number" id="c3-F" placeholder="ej. 100" min="1" max="2000" step="1" oninput="calcPar3()"><span class="input-unit">N</span></div>
+          </div>
+          <div class="input-block">
+            <div class="input-header"><span class="var-label a">Masa del objeto A</span><span class="var-name">Kilogramos</span></div>
+            <div class="input-wrap a-wrap"><input type="number" id="c3-mA" placeholder="ej. 10" min="0.1" max="1000" step="0.1" oninput="calcPar3()"><span class="input-unit">kg</span></div>
+          </div>
+          <div class="input-block">
+            <div class="input-header"><span class="var-label m">Masa del objeto B</span><span class="var-name">Kilogramos</span></div>
+            <div class="input-wrap m-wrap"><input type="number" id="c3-mB" placeholder="ej. 20" min="0.1" max="1000" step="0.1" oninput="calcPar3()"><span class="input-unit">kg</span></div>
+          </div>
+          <div class="input-block">
+            <div class="input-header"><span class="var-label" style="color:var(--accent);">Duración</span><span class="var-name">Segundos</span></div>
+            <div class="input-wrap" style="border-color:rgba(74,240,200,0.3);" id="wrap-c3-t">
+              <input type="number" id="c3-t" placeholder="ej. 10" min="1" max="9999" step="0.5" oninput="checkDur3()">
+              <span class="input-unit">s</span>
+            </div>
+            <div id="dur3-hint" style="margin-top:5px;font-family:var(--font-mono);font-size:10px;color:var(--text-dim);">Límite de simulación: 1 – 60 s</div>
+            <div id="dur3-warning" style="display:none;margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--accent2);background:rgba(255,107,107,0.08);border:1px solid rgba(255,107,107,0.35);border-radius:6px;padding:7px 10px;line-height:1.5;">⚠ Superaste el límite de 60 s.<br>Se muestran los resultados calculados, pero la animación no correrá.</div>
+          </div>
+          <div id="par3-results" style="display:grid;gap:12px;margin-top:1rem;">
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;flex-direction:column;gap:6px;"><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);letter-spacing:0.5px;">Fuerza de reacción</span><span id="r3-Freac" style="font-family:var(--font-mono);font-size:17px;font-weight:700;color:var(--accent);word-break:break-word;">— N</span></div>
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;flex-direction:column;gap:6px;"><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);letter-spacing:0.5px;">Aceleración del objeto A</span><span id="r3-aA" style="font-family:var(--font-mono);font-size:17px;font-weight:700;color:var(--F-color);word-break:break-word;">— m/s²</span></div>
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;flex-direction:column;gap:6px;"><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);letter-spacing:0.5px;">Aceleración del objeto B</span><span id="r3-aB" style="font-family:var(--font-mono);font-size:17px;font-weight:700;color:var(--m-color);word-break:break-word;">— m/s²</span></div>
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;flex-direction:column;gap:6px;"><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);letter-spacing:0.5px;">Impulso</span><span id="r3-J" style="font-family:var(--font-mono);font-size:17px;font-weight:700;color:var(--a-color);word-break:break-word;">— N·s</span></div>
+          </div>
+        </div>
+
+        <!-- MODE 2 -->
+        <div id="calc3-mode2" style="display:none;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+            <div class="input-block" style="margin-bottom:0;"><div class="input-header"><span class="var-label F">Masa A</span><span class="var-name">kg</span></div><div class="input-wrap F-wrap"><input type="number" id="c3-col-mA" placeholder="ej. 10" min="0.1" max="1000" step="0.1" oninput="calcColision3()"><span class="input-unit">kg</span></div></div>
+            <div class="input-block" style="margin-bottom:0;"><div class="input-header"><span class="var-label m">Masa B</span><span class="var-name">kg</span></div><div class="input-wrap m-wrap"><input type="number" id="c3-col-mB" placeholder="ej. 20" min="0.1" max="1000" step="0.1" oninput="calcColision3()"><span class="input-unit">kg</span></div></div>
+            <div class="input-block" style="margin-bottom:0;"><div class="input-header"><span class="var-label F">Velocidad A</span><span class="var-name">m/s</span></div><div class="input-wrap F-wrap"><input type="number" id="c3-col-vA" placeholder="ej. 5" min="-100" max="100" step="0.5" oninput="calcColision3()"><span class="input-unit">m/s</span></div></div>
+            <div class="input-block" style="margin-bottom:0;"><div class="input-header"><span class="var-label m">Velocidad B</span><span class="var-name">m/s</span></div><div class="input-wrap m-wrap"><input type="number" id="c3-col-vB" placeholder="ej. -3" min="-100" max="100" step="0.5" oninput="calcColision3()"><span class="input-unit">m/s</span></div></div>
+          </div>
+          <div class="input-block">
+            <div class="input-header"><span class="var-label a" style="font-size:11px;">Coeficiente de restitución: <span id="c3-e-val">1.0</span></span></div>
+            <input type="range" id="c3-col-e" value="1" min="0" max="1" step="0.05" style="width:100%;accent-color:var(--a-color);" oninput="document.getElementById('c3-e-val').textContent=parseFloat(this.value).toFixed(2);calcColision3()">
+            <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9px;color:var(--text-dim);margin-top:2px;"><span>Inelástica (0)</span><span>Elástica (1)</span></div>
+          </div>
+          <div style="display:grid;gap:12px;margin-top:1rem;">
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;flex-direction:column;gap:6px;"><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);letter-spacing:0.5px;">Velocidad de A después del choque</span><span id="r3-vA2" style="font-family:var(--font-mono);font-size:17px;font-weight:700;color:var(--F-color);word-break:break-word;">— m/s</span></div>
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;flex-direction:column;gap:6px;"><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);letter-spacing:0.5px;">Velocidad de B después del choque</span><span id="r3-vB2" style="font-family:var(--font-mono);font-size:17px;font-weight:700;color:var(--m-color);word-break:break-word;">— m/s</span></div>
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;flex-direction:column;gap:6px;"><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);letter-spacing:0.5px;">Momento total del sistema</span><span id="r3-ptot" style="font-family:var(--font-mono);font-size:17px;font-weight:700;color:var(--accent);word-break:break-word;">— kg·m/s</span></div>
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;flex-direction:column;gap:6px;"><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);letter-spacing:0.5px;">Energía cinética perdida</span><span id="r3-Elost" style="font-family:var(--font-mono);font-size:17px;font-weight:700;color:var(--a-color);word-break:break-word;">— J</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COL 3RA LEY -->
+    <div class="right-col">
+      <div class="metrics-row" id="metrics-row3" style="grid-template-columns:repeat(2,1fr);">
+        <div class="metric-card"><div class="metric-label">Fuerza Acción</div><div class="metric-val F" id="met3-F">—</div><div class="metric-unit-small">N →</div></div>
+        <div class="metric-card"><div class="metric-label">Fuerza Reacción</div><div class="metric-val m" id="met3-R">—</div><div class="metric-unit-small">N ←</div></div>
+        <div class="metric-card" id="met3-I-card" style="display:none;"><div class="metric-label">Intensidad</div><div class="metric-val a" id="met3-I">—</div><div class="metric-unit-small">Newtons</div></div>
+      </div>
+
+      <div class="scene-outer scene3-wrap" id="scene3">
+        <div class="scene-sky"><div class="stars" id="stars3"></div></div>
+        <div class="ground-strip"><div class="ground-markings" id="markings3"></div></div>
+        <div class="hud" id="hud3">
+          <div><span>Acción</span> — N →</div>
+          <div><span>Reacción</span> — N ←</div>
+        </div>
+        <div class="collision-flash" id="col-flash"></div>
+        <div class="force-arrow-wrap" id="arrow3-right" style="display:none;">
+          <div class="arrow-line" id="arrow3-right-line" style="width:40px;"></div>
+          <div class="arrow-head"></div>
+        </div>
+        <div class="arrow-left-wrap" id="arrow3-left" style="display:none;">
+          <div class="arrow-left-line" id="arrow3-left-line" style="width:40px;"></div>
+          <div class="arrow-left-head"></div>
+        </div>
+        <div class="sprite" id="sprite3-A" style="left:24px;transition:left 0.016s linear,font-size 0.25s ease;">🏈</div>
+        <div class="sprite" id="sprite3-B" style="right:24px;left:auto;transition:left 0.016s linear,font-size 0.25s ease;">🚗</div>
+
+        <div id="particles3" style="position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:20;"></div>
+        <!-- Flechas de separación post-colisión -->
+        <div class="sep-arrow-left-wrap" id="sep-arrow-A" style="left:0px;">
+          <div class="sep-arrow-left-line" id="sep-arrow-A-line" style="width:36px;"></div>
+          <div class="sep-arrow-left-head"></div>
+        </div>
+        <div class="sep-arrow-right-wrap" id="sep-arrow-B" style="left:0px;">
+          <div class="sep-arrow-right-line" id="sep-arrow-B-line" style="width:36px;"></div>
+          <div class="sep-arrow-right-head"></div>
+        </div>
+        <div class="sep-label" id="sep-label-A">← reacción</div>
+        <div class="sep-label" id="sep-label-B">acción →</div>
+      </div>
+
+      <!-- Slider fuerza (solo aplica al modo Colisión) -->
+      <div class="panel" id="force3-panel" style="padding:1rem 1.2rem;display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;color:var(--text-muted);">INTENSIDAD DE LA FUERZA</span>
+          <span style="font-family:var(--font-mono);font-size:14px;color:var(--accent3);" id="force3-val">0 N</span>
+        </div>
+        <input type="range" id="force3-slider" min="0" max="500" value="0" step="10" style="width:100%;accent-color:var(--accent3);" oninput="updateForce3()">
+        <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9px;color:var(--text-dim);margin-top:4px;"><span>10 N</span><span>500 N</span></div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-sim" id="btn3-play" disabled style="opacity:0.4;cursor:not-allowed;">▶ Simular</button>
+        <button class="btn-reset" id="btn3-reset" onclick="resetSim3()">↺ Reset</button>
+      </div>
+
+      <div class="status-bar">
+        <div class="status-dot" id="status3-dot"></div>
+        <span id="status3-text">Listo — presiona Simular para ver acción y reacción</span>
+      </div>
+
+      <div class="two-col">
+        <!-- Selector del Objeto A (el que "ejerce" la accion). El color del titulo usa --F-color -->
+        <div class="panel">
+          <div class="panel-title" style="color:var(--F-color);">Objeto A — Acción →</div>
+          <div class="obj-grid" id="obj-grid-A">
+            <div class="obj-card active" onclick="selectObjA(this,'🏈')"><span class="obj-emoji">🏈</span><span class="obj-name">Pelota</span></div>
+            <div class="obj-card" onclick="selectObjA(this,'🚗')"><span class="obj-emoji flip">🚗</span><span class="obj-name">Auto</span></div>
+            <div class="obj-card" onclick="selectObjA(this,'🚛')"><span class="obj-emoji flip">🚛</span><span class="obj-name">Tráiler</span></div>
+            <div class="obj-card" onclick="selectObjA(this,'🛵')"><span class="obj-emoji flip">🛵</span><span class="obj-name">Moto</span></div>
+            <div class="obj-card" onclick="selectObjA(this,'🏎️')"><span class="obj-emoji flip">🏎️</span><span class="obj-name">F1</span></div>
+            <div class="obj-card" onclick="selectObjA(this,'⚽')"><span class="obj-emoji">⚽</span><span class="obj-name">Balón</span></div>
+          </div>
+        </div>
+        <!-- Selector del Objeto B (el que "recibe" y devuelve la reaccion). El titulo usa --accent -->
+        <div class="panel">
+          <div class="panel-title" style="color:var(--accent);">← Objeto B — Reacción</div>
+          <div class="obj-grid" id="obj-grid-B">
+            <div class="obj-card" onclick="selectObjB(this,'🏈')"><span class="obj-emoji">🏈</span><span class="obj-name">Pelota</span></div>
+            <div class="obj-card active" onclick="selectObjB(this,'🚗')"><span class="obj-emoji flip">🚗</span><span class="obj-name">Auto</span></div>
+            <div class="obj-card" onclick="selectObjB(this,'🚛')"><span class="obj-emoji flip">🚛</span><span class="obj-name">Tráiler</span></div>
+            <div class="obj-card" onclick="selectObjB(this,'🛵')"><span class="obj-emoji flip">🛵</span><span class="obj-name">Moto</span></div>
+            <div class="obj-card" onclick="selectObjB(this,'🏎️')"><span class="obj-emoji flip">🏎️</span><span class="obj-name">F1</span></div>
+            <div class="obj-card" onclick="selectObjB(this,'⚽')"><span class="obj-emoji">⚽</span><span class="obj-name">Balón</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+
+  <!-- GRÁFICA 3RA LEY -->
+  <div id="chart3-section" style="display:none;margin-top:20px;">
+    <div class="chart-panel">
+      <div class="chart-header">
+        <div>
+          <div class="panel-title" style="margin-bottom:0.5rem;">Gráfica en tiempo real</div>
+          <div style="display:flex;gap:8px;">
+            <!-- Mismo patron que los tabs de arriba: el tab de grafico activo tiene
+                 fondo solido var(--accent); switchChart3() intercambia los estilos inline -->
+            <button id="cht3-par-btn" onclick="switchChart3('par')" style="padding:5px 14px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:#0b0e1a;font-family:var(--font-mono);font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px;">Acel. vs t</button>
+            <button id="cht3-col-btn" onclick="switchChart3('col')" style="padding:5px 14px;border-radius:6px;border:1px solid var(--border-bright);background:transparent;color:var(--text-muted);font-family:var(--font-mono);font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px;">Colisión</button>
+          </div>
+        </div>
+        <div class="chart-legend" id="ch3-legend-par">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--F-color);"></div>Vel. A</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--m-color);"></div>Vel. B</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--a-color);"></div>Impulso/10</div>
+        </div>
+        <div class="chart-legend" id="ch3-legend-col" style="display:none;">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--F-color);"></div>Obj A</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--m-color);"></div>Obj B</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--a-color);"></div>Momento/10</div>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart3-par" style="display:block;"></canvas>
+        <canvas id="chart3-col" style="display:none;"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- GRÁFICA 2DA LEY -->
+  <div id="chart-section" style="display:none;">
+    <div class="chart-panel">
+      <div class="chart-header">
+        <div class="panel-title" style="margin-bottom:0;">Gráfica en tiempo real</div>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#4af0c8;"></div>Velocidad (m/s)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ffd166;"></div>Posición (m)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ff6b6b;"></div>Fuerza (N)</div>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="myChart" role="img" aria-label="Gráfica de velocidad, posición y fuerza vs tiempo"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORIAL -->
+  <div id="history-section" style="margin-top:24px;display:none;">
+    <div class="panel" style="padding:1.5rem;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;flex-wrap:wrap;gap:10px;">
+        <div class="hist-title-wrap">
+          <div class="panel-title" style="margin-bottom:0;">Historial de simulaciones</div>
+          <div class="hist-counter" id="history-counter">0 simulaciones</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div style="display:flex;gap:6px;">
+            <button id="hist-tab-all"  onclick="filterHistory('all')"  class="hist-tab-btn hist-tab-active">Todas</button>
+            <button id="hist-tab-2da"  onclick="filterHistory('2da')"  class="hist-tab-btn">2da Ley</button>
+            <button id="hist-tab-3ra"  onclick="filterHistory('3ra')"  class="hist-tab-btn">3ra Ley</button>
+            <button id="hist-tab-fav"  onclick="filterHistory('fav')"  class="hist-tab-btn">Favoritos</button>
+          </div>
+          <div class="hist-bulk-downloads">
+            <button id="btn-export-2da" onclick="exportHistoryGroup('2da')" class="hist-bulk-download-btn">Descargar 2da Ley</button>
+            <button id="btn-export-3ra" onclick="exportHistoryGroup('3ra')" class="hist-bulk-download-btn">Descargar 3ra Ley</button>
+            <button id="btn-export-fav" onclick="exportHistoryGroup('fav')" class="hist-bulk-download-btn hist-fav-download">Descargar Favoritos</button>
+          </div>
+          <!-- Boton "Limpiar" (rojo/accent2) y "Generar Reporte PDF" (verde/accent).
+               Aqui el efecto hover no usa CSS :hover sino onmouseover/onmouseout en JS inline,
+               que cambian el fondo a una version tenue del color y lo regresan a transparente -->
+          <button onclick="clearHistory()" style="padding:5px 14px;border-radius:6px;border:1px solid rgba(255,107,107,0.4);background:transparent;color:var(--accent2);font-family:var(--font-mono);font-size:10px;cursor:pointer;letter-spacing:1px;transition:all 0.18s;" onmouseover="this.style.background='rgba(255,107,107,0.1)'" onmouseout="this.style.background='transparent'">✕ Limpiar</button>
+          <button id="btn-export-pdf" onclick="exportPDF()" style="padding:5px 14px;border-radius:6px;border:1px solid rgba(74,240,200,0.4);background:transparent;color:var(--accent);font-family:var(--font-mono);font-size:10px;cursor:pointer;letter-spacing:1px;transition:all 0.18s;" onmouseover="this.style.background='rgba(74,240,200,0.1)'" onmouseout="this.style.background='transparent'">⬇ Generar Reporte PDF</button>
+        </div>
+      </div>
+      <div id="history-empty" style="text-align:center;padding:2.5rem 1rem;font-family:var(--font-mono);font-size:12px;color:var(--text-dim);">
+        <div style="font-size:2rem;margin-bottom:0.8rem;opacity:0.4;">📋</div>
+        Aún no hay simulaciones registradas.<br>Ejecuta una simulación para ver el historial aquí.
+      </div>
+      <div id="history-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+    </div>
+  </div>
+
+  <footer>Simulador de <strong>F = m · a</strong> &nbsp;·&nbsp; Segunda Ley de Newton &nbsp;·&nbsp; Física Clásica &nbsp;·&nbsp; v2026-05-31-6</footer>
+</div>
+
+<script src="js/script.js"></script>
+</body>
+</html>
